@@ -5,9 +5,15 @@ __pycache__/
 .venv/
 venv/
 
+# Secrets (defensive — script doesn't read env vars today)
+.env
+.env.*
+!.env.example
+
 # Editors / OS
 .vscode/
 .idea/
+*.swp
 .DS_Store
 Thumbs.db
 
