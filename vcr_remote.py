@@ -84,7 +84,10 @@ def list_serial_ports():
     results = []
     if _list_ports is not None:
         for info in _list_ports.comports():
-            desc = info.description or ""
+            # info.product is the clean USB iProduct string. Some pyserial
+            # versions return info.description as "<product> - <product>"
+            # (duplicated) for devices whose manufacturer == product.
+            desc = info.product or info.description or ""
             # Skip entries that are clearly not a USB-serial device on Linux
             # (e.g. /dev/ttyS0 built-in UARTs with "n/a" descriptions).
             if desc in ("", "n/a") and info.device.startswith("/dev/ttyS"):
@@ -116,6 +119,11 @@ def open_serial(port_path):
     close_serial()
     if not port_path:
         return
+    # OBS editable string combos store the *display label* (not the per-item
+    # value) when the user picks from the dropdown — so port_path can arrive
+    # as e.g. "/dev/ttyUSB0 — CP2102 USB to UART Bridge". Real serial paths
+    # contain no whitespace, so split and keep the first token.
+    port_path = port_path.split()[0] if port_path.split() else port_path
     if serial is None:
         obs.script_log(obs.LOG_WARNING,
                        "VCR Remote: pyserial not installed. See README.")
@@ -174,7 +182,11 @@ def parse_sequence(text):
             continue
         if tok in COMMANDS:
             out.append(tok)
-        else:
+        elif not any(c.startswith(tok) for c in COMMANDS):
+            # OBS calls script_update on every keystroke. Stay quiet while
+            # the token is still a viable prefix of a real command, e.g.
+            # "P", "PL", "PLA" → all prefixes of PLAY/PAUSE. Only warn once
+            # the input can no longer become a valid command.
             obs.script_log(obs.LOG_WARNING,
                            f"VCR Remote: ignoring unknown command {tok!r}")
     return out
